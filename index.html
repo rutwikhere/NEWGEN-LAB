@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Student ID Card Generator — IIIT Allahabad</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- Embedded Base64 image data to prevent Canvas CORS/Taint errors -->
+  <script src="assets/assets-data.js"></script>
+  <!-- Offline bundled jsPDF library -->
+  <script src="assets/jspdf.umd.min.js"></script>
+</head>
+<body>
+  <!-- Application Top Navigation Bar -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand-group">
+        <div class="brand-badge">IIIT-A</div>
+        <div class="brand-info">
+          <h1 class="brand-name">Lab Access Card Generator</h1>
+          <span class="brand-org">NewGen IEDC — Indian Institute of Information Technology Allahabad</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span class="doc-specs">Format: 1011 × 628 px (PVC Landscape)</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Workspace: Editor Sidebar + Artboard Viewport -->
+  <div class="app-workspace">
+    <!-- Left Editor Sidebar -->
+    <aside class="editor-sidebar">
+      <div class="editor-content">
+        <div class="section-title-group">
+          <h2 class="section-heading">Student Information</h2>
+          <p class="section-subtext">Enter student details to generate the official lab access card.</p>
+        </div>
+
+        <form id="idCardForm" class="editor-form" onsubmit="return false;">
+          <div class="field-group">
+            <label for="studentNameInput" class="field-label">
+              Student Name <span class="req">*</span>
+            </label>
+            <input 
+              type="text" 
+              id="studentNameInput" 
+              class="input-control" 
+              autocomplete="off"
+              required
+            >
+            <span class="field-hint">Font size adjusts dynamically for long names.</span>
+          </div>
+
+          <div class="field-group">
+            <label for="enrollmentInput" class="field-label">
+              Enrollment Number <span class="req">*</span>
+            </label>
+            <input 
+              type="text" 
+              id="enrollmentInput" 
+              class="input-control" 
+              autocomplete="off"
+              required
+            >
+          </div>
+
+          <div class="field-group">
+            <label for="programSelect" class="field-label">
+              Program <span class="req">*</span>
+            </label>
+            <select id="programSelect" class="input-control select-control" required>
+              <option value="" disabled selected>Select Program</option>
+              <option value="B.Tech IT">B.Tech IT</option>
+              <option value="B.Tech IT-Bin">B.Tech IT-Bin</option>
+              <option value="B.Tech ECE">B.Tech ECE</option>
+              <option value="other">Other</option>
+            </select>
+            <div id="otherProgramContainer" class="other-program-container hidden">
+              <input 
+                type="text" 
+                id="programOtherInput" 
+                class="input-control" 
+                autocomplete="off"
+              >
+            </div>
+            <input type="hidden" id="programInput">
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">
+              Student Photo <span class="req">*</span>
+            </label>
+            
+            <div class="photo-dropzone" id="dropZone">
+              <input type="file" id="photoInput" accept="image/png, image/jpeg, image/jpg" class="file-input-hidden">
+              <div class="dropzone-idle" id="dropZonePrompt">
+                <svg class="icon-upload" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+                <span class="idle-text">Choose a photo or drag & drop</span>
+                <span class="idle-sub">Supports PNG, JPG, or JPEG</span>
+              </div>
+              <div class="dropzone-active hidden" id="dropZoneInfo">
+                <img id="thumbPreview" class="thumb-preview" alt="Student photo preview">
+                <div class="thumb-details">
+                  <span id="fileNameDisplay" class="thumb-name">photo.jpg</span>
+                  <span id="fileDimensionsDisplay" class="thumb-size">Dimensions</span>
+                </div>
+                <button type="button" class="btn-remove" id="btnRemovePhoto" title="Remove photo" aria-label="Remove photo">✕</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Photo Reposition / Zoom Controls -->
+          <div class="photo-controls hidden" id="photoAdjustmentCard">
+            <div class="controls-top">
+              <span class="controls-title">Photo Positioning</span>
+              <button type="button" class="btn-text-action" id="btnResetPhotoAdj">Reset</button>
+            </div>
+            <div class="controls-grid">
+              <div class="slider-group">
+                <div class="slider-label-row">
+                  <label for="photoZoom">Zoom</label>
+                  <span id="zoomValue" class="slider-val">1.0x</span>
+                </div>
+                <input type="range" id="photoZoom" min="1" max="2.5" step="0.05" value="1">
+              </div>
+              <div class="slider-group">
+                <div class="slider-label-row">
+                  <label for="photoPanX">Position X</label>
+                  <span id="panXValue" class="slider-val">0px</span>
+                </div>
+                <input type="range" id="photoPanX" min="-100" max="100" step="1" value="0">
+              </div>
+              <div class="slider-group">
+                <div class="slider-label-row">
+                  <label for="photoPanY">Position Y</label>
+                  <span id="panYValue" class="slider-val">0px</span>
+                </div>
+                <input type="range" id="photoPanY" min="-100" max="100" step="1" value="0">
+              </div>
+            </div>
+          </div>
+
+          <!-- Validation Alert -->
+          <div id="validationAlert" class="alert-box hidden" role="alert">
+            <span id="validationMessage">Please fill in all required fields and upload a photo.</span>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="action-buttons">
+            <button type="button" class="btn btn-primary" id="btnDownloadPNG">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span>Download PNG</span>
+            </button>
+            <button type="button" class="btn btn-pdf" id="btnDownloadPDF">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+                <polyline points="10 9 9 9 8 9"></polyline>
+              </svg>
+              <span>Download PDF</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- Collapsible Calibration -->
+        <div class="calibration-section">
+          <button type="button" class="calibration-toggle" id="btnToggleCalibration" aria-expanded="false">
+            <span class="toggle-text">Template Alignment Settings</span>
+            <span class="chevron-arrow" id="calibrationChevron">▾</span>
+          </button>
+          <div class="calibration-body hidden" id="calibrationBody">
+            <p class="calibration-sub">Fine-tune coordinate positions (in pixels) on the template.</p>
+            
+            <div class="calibration-item">
+              <div class="item-label">Student Name</div>
+              <div class="item-inputs">
+                <label>X <input type="number" id="calibNameX" value="250"></label>
+                <label>Y <input type="number" id="calibNameY" value="327"></label>
+                <label>Max W <input type="number" id="calibNameMaxW" value="500"></label>
+                <label>Size <input type="number" id="calibNameSize" value="25"></label>
+              </div>
+            </div>
+
+            <div class="calibration-item">
+              <div class="item-label">Enrollment No.</div>
+              <div class="item-inputs">
+                <label>X <input type="number" id="calibEnrollX" value="250"></label>
+                <label>Y <input type="number" id="calibEnrollY" value="389"></label>
+                <label>Max W <input type="number" id="calibEnrollMaxW" value="500"></label>
+                <label>Size <input type="number" id="calibEnrollSize" value="25"></label>
+              </div>
+            </div>
+
+            <div class="calibration-item">
+              <div class="item-label">Program</div>
+              <div class="item-inputs">
+                <label>X <input type="number" id="calibProgX" value="250"></label>
+                <label>Y <input type="number" id="calibProgY" value="451"></label>
+                <label>Max W <input type="number" id="calibProgMaxW" value="500"></label>
+                <label>Size <input type="number" id="calibProgSize" value="25"></label>
+              </div>
+            </div>
+
+            <div class="calibration-item">
+              <div class="item-label">Photo Container</div>
+              <div class="item-inputs">
+                <label>X <input type="number" id="calibPhotoX" value="767"></label>
+                <label>Y <input type="number" id="calibPhotoY" value="216"></label>
+                <label>Width <input type="number" id="calibPhotoW" value="201"></label>
+                <label>Height <input type="number" id="calibPhotoH" value="240"></label>
+              </div>
+            </div>
+
+            <div class="calibration-actions">
+              <button type="button" class="btn-reset-calib" id="btnResetCalibration">Reset to Defaults</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Right Artboard Workspace (The Canvas) -->
+    <main class="workbench-artboard">
+      <div class="artboard-mat">
+        <div class="card-pvc-shadow" id="cardContainer">
+          <!-- Official Header Banner (IIIT-A and NewGen IEDC Logos) -->
+          <img id="cardHeaderImg" class="card-header-bg" alt="Header Banner" src="assets/card-bg.png">
+
+          <!-- Card Vector / DOM Content Layer -->
+          <div class="card-content-layer" id="cardContentLayer">
+            <!-- LAB ACCESS CARD Header -->
+            <div class="card-heading-container">
+              <span class="card-heading-text">LAB ACCESS CARD</span>
+              <div class="card-heading-underline"></div>
+            </div>
+
+            <!-- Red Authorization Paragraph -->
+            <div class="card-auth-container">
+              <p class="card-auth-text">This card authorizes the holder to access the New Gen IEDC Laboratory with</p>
+              <p class="card-auth-text">the permission of Dr. Ranjana Vyas, Coordinator – New Gen IEDC.</p>
+            </div>
+
+            <!-- Fields Section -->
+            <div class="card-fields-grid">
+              <!-- Student Name -->
+              <div class="field-row field-row-name">
+                <span class="field-label-text">Student Name</span>
+                <span class="field-colon">:</span>
+                <span class="field-value-text" id="domStudentName"></span>
+              </div>
+
+              <!-- Enrollment No. -->
+              <div class="field-row field-row-enroll">
+                <span class="field-label-text">Enrollment No.</span>
+                <span class="field-colon">:</span>
+                <span class="field-value-text" id="domEnrollmentNo"></span>
+              </div>
+
+              <!-- Program -->
+              <div class="field-row field-row-prog">
+                <span class="field-label-text">Program</span>
+                <span class="field-colon">:</span>
+                <span class="field-value-text" id="domProgram"></span>
+              </div>
+            </div>
+
+            <!-- Photo Container (767, 216, 201, 240) -->
+            <div class="card-photo-container" id="cardPhotoContainer">
+              <img id="domPhotoImg" class="card-photo-img hidden" alt="Student Photo">
+              <div id="domPhotoPlaceholder" class="card-photo-placeholder">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.5">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                  <polyline points="21 15 16 10 5 21"></polyline>
+                </svg>
+                <span class="photo-placeholder-text">Photo</span>
+              </div>
+            </div>
+
+            <!-- Signatures & Footer -->
+            <div class="card-footer-container">
+              <div class="sig-col sig-student">
+                <div class="sig-line"></div>
+                <span class="sig-title">Student Signature</span>
+                <span class="sig-sub">(Holder)</span>
+              </div>
+              <div class="footer-center">
+                <span class="footer-address">CC2, Room 4305, IIIT Allahabad</span>
+              </div>
+              <div class="sig-col sig-prof">
+                <div class="sig-line"></div>
+                <span class="sig-title">Prof. Signature</span>
+                <span class="sig-sub">(Dr. Ranjana Vyas)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Master 1011x628 Canvas for PNG export & high-res rendering -->
+          <canvas id="idCardCanvas" width="1011" height="628" class="hidden-canvas"></canvas>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Hidden helper element for JS compatibility -->
+  <span id="fontSizeIndicator" class="hidden"></span>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
